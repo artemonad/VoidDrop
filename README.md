@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="docs/banner.png" alt="VoidDrop Banner" width="100%">
-</p>
+<h1 align="center">VoidDrop</h1>
 
 <p align="center">
   <strong>End-to-end encrypted, zero-knowledge file sharing.</strong><br>
