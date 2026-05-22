@@ -1,0 +1,59 @@
+name: "Publish Release"
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-latest"
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust Stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build PQC WASM Module
+        shell: bash
+        run: |
+          cd crypto-worker
+          wasm-pack build --target web
+          cd ..
+
+      - name: Install Frontend Dependencies
+        shell: bash
+        run: |
+          cd frontend
+          npm install
+          cd ..
+
+      - name: Build Frontend and Compile Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "VoidDrop v__VERSION__"
+          releaseBody: "VoidDrop Desktop Application Release. Encrypted, secure, and fast P2P file transfers."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+          projectPath: "./frontend"
