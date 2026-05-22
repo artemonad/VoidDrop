@@ -1,0 +1,167 @@
+:root {
+  /* Default: Dark Theme variables */
+  --bg-color: #18191c;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --purple: #a78bfa;
+  --blue: #38bdf8;
+  --border-highlight: rgba(255, 255, 255, 0.03);
+  
+  --shadow-out: 9px 9px 20px rgba(0, 0, 0, 0.55), 
+                -9px -9px 20px rgba(255, 255, 255, 0.04);
+  --shadow-in: inset 6px 6px 12px rgba(0, 0, 0, 0.55), 
+               inset -6px -6px 12px rgba(255, 255, 255, 0.04);
+  --shadow-btn-hover: 4px 4px 8px rgba(0, 0, 0, 0.55), 
+                      -4px -4px 8px rgba(255, 255, 255, 0.06);
+  
+  --panel-border: 1px solid rgba(255, 255, 255, 0.02);
+
+  /* Legacy variable mappings for backward compatibility with Svelte component classes */
+  --color-bg: var(--bg-color);
+  --color-bg-subtle: var(--bg-color);
+  --color-border: var(--border-highlight);
+  --color-primary: var(--purple);
+  --color-primary-hover: var(--purple);
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-secondary);
+  --color-success: #10b981;
+  --color-error: #ef4444;
+
+  /* Custom scrollbar neumorphism shadows */
+  --scroll-track-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.5), inset -2px -2px 5px rgba(255, 255, 255, 0.03);
+  --scroll-thumb-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5), -2px -2px 5px rgba(255, 255, 255, 0.04);
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+}
+
+:root.light {
+  /* Light Theme variables */
+  --bg-color: #e0e5ec;
+  --text-primary: #2d3748;
+  --text-secondary: #718096;
+  --purple: #6366f1;
+  --blue: #3b82f6;
+  --border-highlight: rgba(255, 255, 255, 0.6);
+  
+  --shadow-out: 9px 9px 18px rgba(163, 177, 198, 0.6), 
+                -9px -9px 18px rgba(255, 255, 255, 0.83);
+  --shadow-in: inset 6px 6px 12px rgba(163, 177, 198, 0.6), 
+               inset -6px -6px 12px rgba(255, 255, 255, 0.83);
+  --shadow-btn-hover: 4px 4px 8px rgba(163, 177, 198, 0.6), 
+                      -4px -4px 8px rgba(255, 255, 255, 0.9);
+  
+  --panel-border: 1px solid rgba(255, 255, 255, 0.2);
+
+  --color-success: #059669;
+  --color-error: #dc2626;
+
+  --scroll-track-shadow: inset 2px 2px 5px rgba(163, 177, 198, 0.5), inset -2px -2px 5px rgba(255, 255, 255, 0.8);
+  --scroll-thumb-shadow: 2px 2px 5px rgba(163, 177, 198, 0.5), -2px -2px 5px rgba(255, 255, 255, 0.9);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Allow text selection strictly in the shared link inputs, connection logs, and custom selectable nodes */
+.link-display,
+.link-input,
+.header-link-input,
+.log-content,
+.logs-scroll,
+.log-line,
+.log-line * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Base Utilities */
+.glass-panel {
+  background-color: var(--bg-color);
+  box-shadow: var(--shadow-out);
+  border: var(--panel-border);
+  border-radius: 36px;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-primary {
+  background-color: var(--bg-color);
+  color: var(--purple) !important;
+  box-shadow: var(--shadow-out);
+  border: none;
+  border-radius: 18px;
+  padding: 12px 24px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  box-shadow: var(--shadow-btn-hover);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active {
+  box-shadow: var(--shadow-in);
+  transform: translateY(1px);
+}
+
+/* Premium Neumorphic Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  box-shadow: var(--scroll-track-shadow);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-color);
+  box-shadow: var(--scroll-thumb-shadow);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-color);
+}
+
+/* Firefox scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-secondary) var(--bg-color);
+}
+
+/* Mobile viewport containment & scroll isolation */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+    position: relative;
+    width: 100%;
+  }
+}

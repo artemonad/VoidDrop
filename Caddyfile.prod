@@ -1,0 +1,21 @@
+# Frontend serving on port 8443 (fallback from Xray)
+voiddrop.ru:8443 {
+    root * /var/www/voiddrop/frontend
+    try_files {path} {path}/ /index.html
+    file_server
+
+    # Apply Strict Security Headers directly to static files
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' wss://api.voiddrop.ru:8443 https://api.voiddrop.ru:8443 turn.voiddrop.ru:* https://fonts.googleapis.com https://fonts.gstatic.com wss://localhost:* ws://localhost:* http://localhost:* wss://127.0.0.1:* ws://127.0.0.1:* http://127.0.0.1:* http://ipc.localhost tauri://* stun: turn: turns:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none';"
+    }
+}
+
+# Backend API reverse proxy on port 8443 (fallback from Xray)
+api.voiddrop.ru:8443 {
+    reverse_proxy localhost:3300
+}
+

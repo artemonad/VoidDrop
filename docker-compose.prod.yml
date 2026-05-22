@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: voiddrop-backend
+    restart: unless-stopped
+    ports:
+      - "3300:3300"
+    environment:
+      - PORT=3300
+      - TRUST_PROXY=true
+      - TURN_SERVER_URL=${TURN_SERVER_URL:-turn:your-server-ip:3478}
+      - TURN_SHARED_SECRET=${TURN_SHARED_SECRET:-your-coturn-static-auth-secret}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://voiddrop.ru,http://localhost:5173}
+
+  caddy:
+    image: caddy:alpine
+    container_name: voiddrop-caddy
+    network_mode: "host"
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile
+      - ./frontend/build:/var/www/voiddrop/frontend
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

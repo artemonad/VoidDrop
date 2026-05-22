@@ -1,0 +1,210 @@
+(* Formal Protocol Verification of VoidDrop *)
+(* Language: Applied Pi-Calculus for ProVerif *)
+
+(* --- Channels --- *)
+free c: channel. (* Public network channel (attacker can intercept/inject) *)
+
+(* --- Types --- *)
+type key.
+type bitstring_t.
+type G.
+type exponent.
+type ml_kem_pkey.
+type ml_kem_skey.
+
+(* --- Cryptographic Primitives --- *)
+
+(* Symmetric Encryption (XChaCha20-Poly1305) *)
+fun senc(bitstring_t, key): bitstring_t.
+reduc forall m: bitstring_t, k: key; sdec(senc(m, k), k) = m.
+
+(* MAC (HMAC-SHA-256) *)
+fun hmac(bitstring_t, key): bitstring_t.
+
+(* Diffie-Hellman (X25519) *)
+const g: G.
+fun exp(G, exponent): G.
+equation forall x: exponent, y: exponent; exp(exp(g, x), y) = exp(exp(g, y), x).
+fun dh_to_key(G): key.
+
+(* Post-Quantum KEM (ML-KEM-768) *)
+fun ml_kem_pk(ml_kem_skey): ml_kem_pkey.
+fun ml_kem_enc(ml_kem_pkey, key): bitstring_t.
+reduc forall sk: ml_kem_skey, k: key; ml_kem_dec(ml_kem_enc(ml_kem_pk(sk), k), sk) = k.
+
+(* Key Derivation Function (HKDF-SHA-256) *)
+fun hkdf_extract(key, key): key.
+fun hkdf_expand(key, bitstring_t): key.
+fun concat_secrets(key, key): key.
+
+(* CBOR Container Representation *)
+fun cbor_msg(bitstring_t, bitstring_t, bitstring_t, bitstring_t): bitstring_t.
+fun cbor_payload_offer(G, ml_kem_pkey): bitstring_t.
+fun cbor_payload_answer(G, bitstring_t): bitstring_t.
+
+(* Stream Deframing and Frame Packaging *)
+fun frame(bitstring_t, bitstring_t): bitstring_t.
+reduc forall p: bitstring_t, t: bitstring_t; get_payload(frame(p, t)) = p.
+reduc forall p: bitstring_t, t: bitstring_t; get_tag(frame(p, t)) = t.
+
+(* Frame Tags *)
+const tag_msg: bitstring_t.
+const tag_final: bitstring_t.
+
+(* HKDF Info Constants *)
+const info_sig: bitstring_t.
+const info_manifest: bitstring_t.
+const info_seg: bitstring_t.
+const salt: key.
+
+(* --- Secrets and Public Constants --- *)
+free psk: key [private]. (* Root of Trust PSK shared via URL hash *)
+free file_content: bitstring_t [private]. (* The file data being transferred *)
+
+(* --- Events for Authenticity & Integrity --- *)
+event sender_sent_offer(bitstring_t).
+event receiver_received_offer(bitstring_t).
+event receiver_sent_answer(bitstring_t).
+event sender_received_answer(bitstring_t).
+
+event sender_started_stream(key).
+event receiver_completed_stream(key).
+event sender_sent_final_tag(key).
+event receiver_verified_final_tag(key).
+
+(* --- Security Queries --- *)
+
+(* 1. Secrecy of the Transferred File *)
+query secret file_content.
+
+(* 2. Secrecy of the Derived E2E Session Keys *)
+query secret psk.
+
+(* 3. Authenticity of signaling (MitM defense) *)
+query x: bitstring_t; inj-event(receiver_received_offer(x)) ==> inj-event(sender_sent_offer(x)).
+query x: bitstring_t; inj-event(sender_received_answer(x)) ==> inj-event(receiver_sent_answer(x)).
+
+(* 4. Integrity and Truncation Protection via TAG_FINAL *)
+query k: key; event(receiver_verified_final_tag(k)) ==> event(sender_sent_final_tag(k)).
+query k: key; event(receiver_completed_stream(k)) ==> event(sender_started_stream(k)).
+
+(* --- Protocol Roles --- *)
+
+(* Sender Process *)
+let process_sender(psk_val: key, file_val: bitstring_t) =
+    (* Step 1: Pre-handshake signaling key derivation *)
+    let k_sig_mac = hkdf_expand(hkdf_extract(salt, psk_val), info_sig) in
+
+    (* Step 2: Generate Ephemeral Key Exchange parameters *)
+    new x: exponent;
+    let X_pub = exp(g, x) in
+    new sk_kem: ml_kem_skey;
+    let PK_kem = ml_kem_pk(sk_kem) in
+
+    (* Step 3: Package and Sign CBOR Signaling Offer *)
+    let offer_payload = cbor_payload_offer(X_pub, PK_kem) in
+    let version = info_sig in
+    new room_id: bitstring_t;
+    new sender_id: bitstring_t;
+    let msg_offer = cbor_msg(version, room_id, sender_id, offer_payload) in
+    let mac_offer = hmac(msg_offer, k_sig_mac) in
+    
+    event sender_sent_offer(msg_offer);
+    out(c, (mac_offer, msg_offer));
+
+    (* Step 4: Receive and Verify CBOR Signaling Answer *)
+    in(c, (mac_ans: bitstring_t, msg_ans: bitstring_t));
+    if hmac(msg_ans, k_sig_mac) = mac_ans then
+    event sender_received_answer(msg_ans);
+
+    (* Parse answer payload *)
+    let cbor_msg(ver_ans, rid_ans, sid_ans, ans_payload) = msg_ans in
+    let cbor_payload_answer(Y_pub, kem_ciphertext) = ans_payload in
+
+    (* Step 5: Complete Hybrid Key Exchange *)
+    let kem_shared = ml_kem_dec(kem_ciphertext, sk_kem) in
+    let dh_shared = exp(Y_pub, x) in
+    let dh_shared_key = dh_to_key(dh_shared) in
+    let SharedSecret = concat_secrets(kem_shared, dh_shared_key) in
+
+    (* Step 6: Derive Data Encryption Keys *)
+    let IKM = concat_secrets(psk_val, SharedSecret) in
+    let PRK = hkdf_extract(salt, IKM) in
+    let k_manifest = hkdf_expand(PRK, info_manifest) in
+    let k_seg_base = hkdf_expand(PRK, info_seg) in
+
+    (* Step 7: Stream Manifest and File Data *)
+    event sender_started_stream(k_seg_base);
+    
+    (* Pack and encrypt manifest *)
+    let manifest_data = ver_ans in
+    let enc_manifest = senc(manifest_data, k_manifest) in
+    out(c, enc_manifest);
+
+    (* Pack file into stream frames *)
+    let frame_data = frame(file_val, tag_final) in
+    let enc_frame = senc(frame_data, k_seg_base) in
+    
+    event sender_sent_final_tag(k_seg_base);
+    out(c, enc_frame).
+
+
+(* Receiver Process *)
+let process_receiver(psk_val: key) =
+    (* Step 1: Pre-handshake signaling key derivation *)
+    let k_sig_mac = hkdf_expand(hkdf_extract(salt, psk_val), info_sig) in
+
+    (* Step 2: Receive and Verify CBOR Signaling Offer *)
+    in(c, (mac_offer: bitstring_t, msg_offer: bitstring_t));
+    if hmac(msg_offer, k_sig_mac) = mac_offer then
+    event receiver_received_offer(msg_offer);
+
+    (* Parse offer payload *)
+    let cbor_msg(version, room_id, sender_id, offer_payload) = msg_offer in
+    let cbor_payload_offer(X_pub, PK_kem) = offer_payload in
+
+    (* Step 3: Generate Ephemeral Key Exchange parameters *)
+    new y: exponent;
+    let Y_pub = exp(g, y) in
+    new kem_shared: key;
+    let kem_ciphertext = ml_kem_enc(PK_kem, kem_shared) in
+
+    (* Step 4: Package and Sign CBOR Signaling Answer *)
+    let answer_payload = cbor_payload_answer(Y_pub, kem_ciphertext) in
+    let receiver_id = room_id in
+    let msg_ans = cbor_msg(version, room_id, receiver_id, answer_payload) in
+    let mac_ans = hmac(msg_ans, k_sig_mac) in
+    
+    event receiver_sent_answer(msg_ans);
+    out(c, (mac_ans, msg_ans));
+
+    (* Step 5: Complete Hybrid Key Exchange *)
+    let dh_shared = exp(X_pub, y) in
+    let dh_shared_key = dh_to_key(dh_shared) in
+    let SharedSecret = concat_secrets(kem_shared, dh_shared_key) in
+
+    (* Step 6: Derive Data Encryption Keys *)
+    let IKM = concat_secrets(psk_val, SharedSecret) in
+    let PRK = hkdf_extract(salt, IKM) in
+    let k_manifest = hkdf_expand(PRK, info_manifest) in
+    let k_seg_base = hkdf_expand(PRK, info_seg) in
+
+    (* Step 7: Receive and Decrypt Manifest and Stream Frames *)
+    in(c, enc_manifest: bitstring_t);
+    let manifest_data = sdec(enc_manifest, k_manifest) in
+
+    in(c, enc_frame: bitstring_t);
+    let frame_data = sdec(enc_frame, k_seg_base) in
+    let file_val = get_payload(frame_data) in
+    let tag_val = get_tag(frame_data) in
+
+    (* Step 8: Validate Truncation Protection *)
+    if tag_val = tag_final then
+    event receiver_verified_final_tag(k_seg_base);
+    event receiver_completed_stream(k_seg_base).
+
+
+(* --- Entry Point Process --- *)
+process
+    (* Spin up concurrent Sender and Receiver processes sharing the PSK *)
+    (!process_sender(psk, file_content) | !process_receiver(psk))

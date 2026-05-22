@@ -1,0 +1,18 @@
+voiddrop.ru {
+    tls internal
+    reverse_proxy localhost:5173
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' ws://api.voiddrop.ru wss://api.voiddrop.ru https://api.voiddrop.ru turn.voiddrop.ru:* https://fonts.googleapis.com https://fonts.gstatic.com wss://localhost:* ws://localhost:* http://localhost:* wss://127.0.0.1:* ws://127.0.0.1:* http://127.0.0.1:* http://ipc.localhost tauri://* stun: turn: turns:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none';"
+    }
+}
+
+api.voiddrop.ru {
+    tls internal
+    reverse_proxy localhost:3300
+}
+
+
