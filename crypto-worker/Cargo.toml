@@ -1,0 +1,18 @@
+[package]
+name = "crypto-worker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chacha20poly1305 = "0.10.1"
+aead = { version = "0.5.2", features = ["std"] }
+getrandom = { version = "0.2", features = ["js"] }
+js-sys = "0.3.95"
+pqc_kyber = { version = "0.7.1", features = ["std", "kyber768"] }
+rand_core = "0.6"
+serde = { version = "1.0.228", features = ["derive"] }
+wasm-bindgen = "0.2.118"
+web-sys = "0.3.95"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
