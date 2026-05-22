@@ -22,7 +22,7 @@ Because of this architectural design, any potential security vulnerability is tr
 If you discover a vulnerability or potential security issue, please report it privately:
 
 1. **GitHub Private Vulnerability Reporting:** Go to the [Security tab](https://github.com/artemonad/VoidDrop/security) of the VoidDrop repository on GitHub and click on **Report a vulnerability** to submit a private report directly to the maintainers.
-2. **Codeberg:** If you are using Codeberg, please contact the maintainers privately or request a secure private disclosure channel through your profile contact options.
+2. **Codeberg Confidential Issues:** Go to the [Issues tab](https://codeberg.org/artemonad/VoidDrop/issues) of the VoidDrop repository on Codeberg, click on **New Issue**, and make sure to check the **"This issue is confidential"** checkbox (only repository collaborators will be able to see it) to submit a private report safely.
 
 ### What to Include in the Report:
 - A detailed description of the vulnerability.
