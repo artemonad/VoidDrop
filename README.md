@@ -413,7 +413,7 @@ npx playwright test
 - [x] libsodium cryptographically secure memory scrubbing (`sodium.memzero`)
 - [x] Prometheus Metrics Telemetry Integration
 - [x] Playwright P2P E2E Integration Suite
-- [ ] Resumable P2P transfer (per-segment key derivation in protocol v2)
+- [x] Resumable P2P transfer (per-segment key derivation in protocol v2)
 - [ ] CLI client for headless environments
 
 ---
