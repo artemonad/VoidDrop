@@ -17,26 +17,16 @@ Because of this architectural design, any potential security vulnerability is tr
 
 ## Reporting a Vulnerability
 
-**Please do not open public GitHub or Codeberg issues for security-sensitive bugs or cryptographic vulnerabilities.** 
+**Please do not open public issues for security-sensitive bugs or cryptographic vulnerabilities.**
 
 If you discover a vulnerability or potential security issue, please report it privately:
 
-1. **Email:** Send a detailed report to [security@voiddrop.ru](mailto:security@voiddrop.ru).
-2. **Encrypted Communication:** If you wish to encrypt your report, please let us know in a brief introductory email, and we will coordinate a secure PGP-encrypted or Signal channel.
+1. **GitHub Private Vulnerability Reporting:** Go to the [Security tab](https://github.com/artemonad/VoidDrop/security) of the VoidDrop repository on GitHub and click on **Report a vulnerability** to submit a private report directly to the maintainers.
+2. **Codeberg:** If you are using Codeberg, please contact the maintainers privately or request a secure private disclosure channel through your profile contact options.
 
 ### What to Include in the Report:
 - A detailed description of the vulnerability.
 - A proof-of-concept (PoC) or step-by-step instructions to reproduce the issue.
 - Potential impact (e.g., local memory leaks, remote key exhaustion, signaling manipulation).
-- Your name/pseudonym if you would like to be credited in our changelog once the patch is published.
-
-## Disclosure Process
-
-We follow coordinated vulnerability disclosure principles:
-
-1. We will acknowledge receipt of your report within **48 hours**.
-2. We will analyze the issue, determine its severity, and develop a patch.
-3. We will keep you updated throughout the process.
-4. Once the patch is successfully merged, deployed to production (`voiddrop.ru`), and native binaries are updated, we will publish the release notes and credit you for the discovery (unless you request anonymity).
 
 Thank you for helping keep VoidDrop secure!
