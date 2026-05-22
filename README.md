@@ -428,7 +428,7 @@ Core principle: **the server must remain blind**. Any change that gives the serv
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
 ---
 
