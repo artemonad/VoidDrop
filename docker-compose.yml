@@ -8,7 +8,7 @@ services:
     command: >
       -n --log-file=stdout --min-port=49152 --max-port=65535
       --external-ip=${EXTERNAL_IP:-your-server-ip} --realm=voiddrop.ru 
-      --no-tls --no-dtls --use-auth-secret --static-secret=${TURN_SHARED_SECRET:-your-coturn-static-auth-secret}
+      --no-tls --no-dtls --use-auth-secret --static-auth-secret=${TURN_SHARED_SECRET:-your-coturn-static-auth-secret}
     restart: unless-stopped
 
   caddy:
