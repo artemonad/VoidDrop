@@ -14,6 +14,19 @@ export interface SignalMessage {
 export type WebRTCStateCallback = (state: string) => void;
 export type WebRTCFrameCallback = (type: number, payload: Uint8Array) => void;
 
+function parseCandidate(candStr: string) {
+    if (!candStr) return { ip: 'hidden', port: 0 };
+    const parts = candStr.trim().split(/\s+/);
+    // Format is: candidate:foundation component protocol priority connection-address port typ type ...
+    // E.g. "candidate:842163049 1 udp 16777215 172.93.108.210 64996 typ srflx ..."
+    if (parts.length >= 6) {
+        let ip = parts[4];
+        let port = parseInt(parts[5], 10) || 0;
+        return { ip, port };
+    }
+    return { ip: 'hidden', port: 0 };
+}
+
 export class WebRTCConnection {
     private pc: RTCPeerConnection;
     private dcControl: RTCDataChannel;
@@ -69,6 +82,7 @@ export class WebRTCConnection {
         this.apiBase = base.replace(/\/$/, '');
 
         const iceServers: RTCIceServer[] = [
+            { urls: 'stun:stun.cloudflare.com:3478' },
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' }
         ];
@@ -98,7 +112,8 @@ export class WebRTCConnection {
         } else {
             const wsBase = this.apiBase.replace('https://', 'wss://').replace('http://', 'ws://');
             this.ws = new WebSocket(`${wsBase}/ws/${this.roomId}`);
-            this.turnCredentialsPromise = Promise.resolve(); // Will be fetched asynchronously on WebSocket open
+            // Fetch TURN credentials immediately in parallel with WebSocket handshake to speed up ICE configuration
+            this.turnCredentialsPromise = this.fetchAndApplyTurnCredentials();
             this.setupWebSocket();
         }
     }
@@ -133,6 +148,16 @@ export class WebRTCConnection {
                 });
                 
                 this.log(`[ICE] Applied dynamic TURN credentials. Active ICE servers updated.`);
+
+                // Force WebView2 or the browser to immediately start gathering TURN candidates if we have already negotiated
+                if (this.pc.signalingState !== 'stable' || this.pc.iceConnectionState === 'failed' || this.pc.iceGatheringState !== 'new') {
+                    this.log(`[ICE] Restarting ICE gathering to utilize newly added TURN servers.`);
+                    try {
+                        this.pc.restartIce();
+                    } catch (err) {
+                        console.warn("[WebRTC] Failed to restart ICE:", err);
+                    }
+                }
             }
         } catch (err) {
             console.error("[WebRTC] Error fetching dynamic TURN credentials:", err);
@@ -171,8 +196,8 @@ export class WebRTCConnection {
                 const type = candStr.includes('typ host') ? 'LAN/Host' :
                              candStr.includes('typ srflx') ? 'STUN/Internet' :
                              candStr.includes('typ relay') ? 'TURN/Proxy' : 'Unknown';
-                const ip = (candidate as any).address || (candidate as any).ip || 'hidden';
-                this.log(`[ICE] Gathered local candidate (${type}): ${ip}:${candidate.port} (${candidate.protocol})`);
+                const parsed = parseCandidate(candStr);
+                this.log(`[ICE] Gathered local candidate (${type}): ${parsed.ip}:${parsed.port} (${candidate.protocol})`);
                 await this.sendSignal({
                     type: 'ice',
                     payload: candidate.toJSON(),
@@ -254,8 +279,7 @@ export class WebRTCConnection {
 
             if (this.onStateChange) this.onStateChange('WebSocket: CONNECTED');
             
-            // Asynchronously fetch and apply dynamic TURN credentials now that the signaling room is active on backend
-            this.turnCredentialsPromise = this.fetchAndApplyTurnCredentials();
+            // Credentials are already being fetched in parallel in the constructor
             
             // Flush buffered signals
             if (this.pendingSignals.length > 0) {
@@ -385,8 +409,8 @@ export class WebRTCConnection {
                     const type = candStr.includes('typ host') ? 'LAN/Host' :
                                  candStr.includes('typ srflx') ? 'STUN/Internet' :
                                  candStr.includes('typ relay') ? 'TURN/Proxy' : 'Unknown';
-                    const ip = cand.address || cand.ip || 'hidden';
-                    this.log(`[ICE] Received remote candidate ${isLocalUdp ? '(LocalUDP)' : ''} (${type}): ${ip}:${cand.port}`);
+                    const parsed = parseCandidate(candStr);
+                    this.log(`[ICE] Received remote candidate ${isLocalUdp ? '(LocalUDP)' : ''} (${type}): ${parsed.ip}:${parsed.port}`);
                     if (this.pc.remoteDescription) {
                         await this.pc.addIceCandidate(msg.payload);
                     } else {
