@@ -112,8 +112,7 @@ export class WebRTCConnection {
         } else {
             const wsBase = this.apiBase.replace('https://', 'wss://').replace('http://', 'ws://');
             this.ws = new WebSocket(`${wsBase}/ws/${this.roomId}`);
-            // Fetch TURN credentials immediately in parallel with WebSocket handshake to speed up ICE configuration
-            this.turnCredentialsPromise = this.fetchAndApplyTurnCredentials();
+            this.turnCredentialsPromise = Promise.resolve(); // Will be fetched asynchronously on WebSocket open to prevent 403
             this.setupWebSocket();
         }
     }
@@ -280,8 +279,8 @@ export class WebRTCConnection {
 
             if (this.onStateChange) this.onStateChange('WebSocket: CONNECTED');
             
-            // Credentials are already being fetched in the constructor
-                this.turnCredentialsPromise = this.turnCredentialsPromise || Promise.resolve();
+            // Asynchronously fetch and apply dynamic TURN credentials now that the signaling room is active on backend
+            this.turnCredentialsPromise = this.fetchAndApplyTurnCredentials();
             
             // Flush buffered signals
             if (this.pendingSignals.length > 0) {
