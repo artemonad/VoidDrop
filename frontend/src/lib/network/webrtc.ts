@@ -203,15 +203,28 @@ export class WebRTCConnection {
                     payload: candidate.toJSON(),
                     sid: this.myUuid
                 });
+            } else {
+                this.log(`[ICE] Local candidate gathering complete.`);
             }
         };
 
+        this.pc.onicecandidateerror = (event: any) => {
+            this.log(`[ICE Error] Code ${event.errorCode}: ${event.errorText} for target ${event.url}`);
+        };
+
+        this.pc.onicegatheringstatechange = () => {
+            this.log(`[ICE] Gathering state: ${this.pc.iceGatheringState}`);
+        };
+
         this.pc.onconnectionstatechange = () => {
+            this.log(`[WebRTC] Connection state: ${this.pc.connectionState}`);
             if (this.onStateChange) this.onStateChange(`PeerConnection: ${this.pc.connectionState}`);
         };
 
         this.pc.oniceconnectionstatechange = () => {
+            this.log(`[ICE] Connection state: ${this.pc.iceConnectionState}`);
             if (this.pc.iceConnectionState === 'failed') {
+                this.log(`[ICE] Connection failed. Restarting ICE...`);
                 this.pc.restartIce();
             }
         };
