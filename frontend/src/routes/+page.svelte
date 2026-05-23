@@ -15,8 +15,8 @@
     } from "$lib/transfer";
     import { handlePasteLink as pasteLinkHelper } from "$lib/transfer/linkHandler";
     import { isTauri } from "$lib/isTauri";
+    import { readDirRecursive, getTauriFilesFromPaths } from "$lib/tauriFs";
     import ConnectionLog from "$lib/components/ConnectionLog.svelte";
-    import DesktopLayout from "$lib/components/DesktopLayout.svelte";
     import Logo from "$lib/components/Logo.svelte";
     import DropZone from "$lib/components/DropZone.svelte";
     import SenderView from "$lib/components/SenderView.svelte";
@@ -219,6 +219,102 @@
         }
     }
 
+    async function selectFilesTauri() {
+        if (!isTauri()) return;
+        s.currentPage = 0;
+        try {
+            const { open } = await import('@tauri-apps/plugin-dialog');
+            const selected = await open({
+                multiple: true,
+                directory: false,
+                title: 'Select Files'
+            });
+            if (!selected) return;
+
+            s.isScanningFiles = true;
+            const paths = Array.isArray(selected) ? selected : [selected];
+            const filesWithMeta = await getTauriFilesFromPaths(paths);
+            
+            let addedSize = 0;
+            for (const item of filesWithMeta) {
+                addedSize += item.file.size;
+            }
+            s.selectedFiles = [...s.selectedFiles, ...filesWithMeta];
+            s.totalSelectionSize += addedSize;
+            s.isScanningFiles = false;
+
+            if (s.selectedFiles.length > 0) {
+                s.peerRole = 'sender';
+                s.log(
+                    `Selected ${s.selectedFiles.length} file(s) via native dialog. Total: ${(s.totalSelectionSize / 1024 / 1024).toFixed(2)} MB`
+                );
+            }
+        } catch (err) {
+            s.isScanningFiles = false;
+            console.error('Tauri open files error:', err);
+            s.showToast('Failed to select files');
+        }
+    }
+
+    async function selectFolderTauri() {
+        if (!isTauri()) return;
+        s.currentPage = 0;
+        try {
+            const { open } = await import('@tauri-apps/plugin-dialog');
+            const selected = await open({
+                multiple: false,
+                directory: true,
+                title: 'Select Folder'
+            });
+            if (!selected || typeof selected !== 'string') return;
+
+            s.isScanningFiles = true;
+            s.log(`Scanning native directory recursively: ${selected}`);
+            
+            const filesWithMeta = await readDirRecursive(selected);
+            if (filesWithMeta.length === 0) {
+                s.isScanningFiles = false;
+                s.showToast('Selected folder is empty');
+                return;
+            }
+
+            let addedSize = 0;
+            for (const item of filesWithMeta) {
+                addedSize += item.file.size;
+            }
+            s.selectedFiles = [...s.selectedFiles, ...filesWithMeta];
+            s.totalSelectionSize += addedSize;
+            s.isScanningFiles = false;
+
+            if (s.selectedFiles.length > 0) {
+                s.peerRole = 'sender';
+                s.log(
+                    `Selected folder via native dialog (${filesWithMeta.length} files). Total: ${(s.totalSelectionSize / 1024 / 1024).toFixed(2)} MB`
+                );
+            }
+        } catch (err) {
+            s.isScanningFiles = false;
+            console.error('Tauri open folder error:', err);
+            s.showToast('Failed to select folder');
+        }
+    }
+
+    function triggerFileSelect() {
+        if (isTauri()) {
+            selectFilesTauri();
+        } else {
+            s.fileInput?.click();
+        }
+    }
+
+    function triggerFolderSelect() {
+        if (isTauri()) {
+            selectFolderTauri();
+        } else {
+            s.folderInput?.click();
+        }
+    }
+
     // --- Lifecycle ---
     onMount(() => {
         isDesktop = isTauri();
@@ -256,21 +352,7 @@
 
 </script>
 
-{#if isDesktop}
-    <DesktopLayout
-        {s}
-        {apiBase}
-        {fileTree}
-        {explorerFiles}
-        {handleFileSelect}
-        {handleDrop}
-        {removeFile}
-        {removeMultipleFiles}
-        {clearAllFiles}
-        {isLight}
-        {toggleTheme}
-    />
-{:else}
+
     <header class="neu-header">
         <a href="/" class="logo" onclick={(e) => { e.preventDefault(); s.resetToHome(); }}>
             <Logo size={24} />
@@ -321,14 +403,14 @@
 
                 <!-- BUTTONS ROW -->
                 <div class="buttons-row">
-                    <button class="btn btn-colored" onclick={() => s.fileInput?.click()}>
+                    <button class="btn btn-colored" onclick={triggerFileSelect}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
                         {i18n.t('selectFiles')}
                     </button>
-                    <button class="btn btn-colored-blue" onclick={() => s.folderInput?.click()}>
+                    <button class="btn btn-colored-blue" onclick={triggerFolderSelect}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                         </svg>
@@ -407,7 +489,6 @@
     </main>
 
     <SpecModal bind:show={showSpecification} />
-{/if}
 
 {#if s.toastMessage}
     <div class="toast">{s.toastMessage}</div>
@@ -424,6 +505,7 @@
         align-items: center;
         user-select: none;
         -webkit-user-select: none;
+        -webkit-app-region: drag;
     }
 
     .logo {
@@ -436,12 +518,14 @@
         align-items: center;
         gap: 0.6rem;
         letter-spacing: -0.02em;
+        -webkit-app-region: no-drag;
     }
 
     .nav-controls {
         display: flex;
         align-items: center;
         gap: 1.5rem;
+        -webkit-app-region: no-drag;
     }
 
     .btn-theme-toggle {
