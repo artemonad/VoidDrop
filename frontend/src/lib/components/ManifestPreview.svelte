@@ -169,10 +169,46 @@
                 {isBundle ? 'Download All' : 'Download File'}
             </button>
         </div>
+
+        {#if isBundle && hasFileSystemAccess && !isDesktop}
+            <div class="zip-fallback-container">
+                <button
+                    type="button"
+                    class="btn-zip-fallback-link"
+                    onclick={() => startP2PDownload(s, true)}
+                    disabled={!s.p2pSelectedFiles.some((v) => v)}
+                >
+                    Download as a ZIP archive
+                </button>
+            </div>
+        {/if}
     </div>
 {/if}
 
 <style>
+    .zip-fallback-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 0.75rem;
+    }
+    .btn-zip-fallback-link {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0.2rem 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .btn-zip-fallback-link:hover:not(:disabled) {
+        color: var(--purple);
+    }
+    .btn-zip-fallback-link:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        text-decoration: none;
+    }
     .status-box {
         background-color: var(--bg-color);
         box-shadow: var(--shadow-in);
