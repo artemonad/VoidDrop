@@ -747,7 +747,7 @@
 {/if}
 
 <style>
-	.container { max-width: 600px; margin: 4rem auto; padding: 2rem; }
+	.container { max-width: 720px; margin: 4rem auto; padding: 2rem; }
 	.glass-panel { padding: 3rem; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; }
 	.text-center { text-align: center; }
 	.mt-4 { margin-top: 2rem; }

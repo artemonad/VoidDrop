@@ -16,6 +16,8 @@ mod tests {
             max_rooms: 1000,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         };
 
         app_router(Arc::new(app_state))
@@ -32,6 +34,8 @@ mod tests {
             max_rooms: 1000,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         };
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -275,6 +279,8 @@ mod tests {
             max_rooms: 1000,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         });
 
         // Insert client ip bucket with 0.0 tokens
@@ -330,6 +336,8 @@ mod tests {
             max_rooms: 1000,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         });
 
         let app = app_router(app_state.clone());
@@ -367,11 +375,13 @@ mod tests {
             max_rooms: 1000,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         });
 
         let app = app_router(app_state.clone());
 
-        // First IP in X-Forwarded-For is client's real IP
+        // Rightmost non-loopback IP in X-Forwarded-For is client's real IP
         app_state.rate_limits.insert("api:9.9.9.9".to_string(), RateLimitData {
             tokens: 0.0,
             last_updated: std::time::Instant::now(),
@@ -382,7 +392,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri("/api/turn-credentials?room_id=test")
-                    .header("x-forwarded-for", "9.9.9.9, 10.0.0.1, 192.168.1.1")
+                    .header("x-forwarded-for", "9.9.9.9, 127.0.0.1")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -403,6 +413,8 @@ mod tests {
             max_rooms: 1000,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         });
 
         let app = app_router(app_state.clone());
@@ -441,6 +453,8 @@ mod tests {
             max_rooms: 10,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         };
 
         let r1 = state.get_room("room-1").await.unwrap();
@@ -462,6 +476,8 @@ mod tests {
             max_rooms: 2, // Maximum 2 rooms allowed
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         };
 
         assert!(state.get_room("room-1").await.is_some());
@@ -483,6 +499,8 @@ mod tests {
             max_rooms: 100,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         });
 
         let mut handles = vec![];
@@ -521,6 +539,8 @@ mod tests {
             max_rooms: 100,
             ws_connections: std::sync::atomic::AtomicUsize::new(0),
             rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
         });
 
         assert_eq!(state.ws_connections.load(std::sync::atomic::Ordering::Relaxed), 0);
@@ -533,5 +553,70 @@ mod tests {
 
         // Out of scope, must decrement
         assert_eq!(state.ws_connections.load(std::sync::atomic::Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_prometheus_metrics_counters() {
+        let app_state = Arc::new(AppState {
+            rooms: Arc::new(DashMap::new()),
+            rate_limits: Arc::new(DashMap::new()),
+            trust_proxy: false,
+            turn_shared_secret: Some("test_secret".to_string()),
+            turn_server_url: Some("turn:test_url".to_string()),
+            max_rooms: 1000,
+            ws_connections: std::sync::atomic::AtomicUsize::new(0),
+            rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
+            rooms_created: std::sync::atomic::AtomicUsize::new(0),
+            turn_requests: std::sync::atomic::AtomicUsize::new(0),
+        });
+
+        let app = app_router(app_state.clone());
+
+        // 1. Initially rooms_created and turn_requests should be 0
+        assert_eq!(app_state.rooms_created.load(std::sync::atomic::Ordering::Relaxed), 0);
+        assert_eq!(app_state.turn_requests.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+        // 2. Trigger room creation
+        let room_uuid = uuid::Uuid::new_v4().to_string();
+        let room = app_state.get_room(&room_uuid).await.unwrap();
+        assert_eq!(app_state.rooms_created.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+        // 3. To pass the active participant check, we must have receiver_count > 0.
+        // We simulate a participant by subscribing to the room's broadcast sender channel.
+        let _rx = room.tx.subscribe();
+
+        // 4. Request TURN credentials for this room
+        let response = app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/turn-credentials?room_id={}", room_uuid))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(app_state.turn_requests.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+        // 5. Fetch /metrics and verify the counter strings
+        let metrics_response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(metrics_response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(metrics_response.into_body(), 1024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+
+        assert!(body_str.contains("voiddrop_rooms_created_total 1"));
+        assert!(body_str.contains("voiddrop_turn_requests_total 1"));
     }
 }

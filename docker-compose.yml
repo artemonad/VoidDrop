@@ -14,7 +14,11 @@ services:
   caddy:
     image: caddy:alpine
     container_name: voiddrop-caddy
-    network_mode: "host"
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile

@@ -48,8 +48,10 @@ pub async fn rate_limit_middleware(
         {
             ip_str
                 .split(',')
-                .next()
-                .and_then(|s| s.trim().parse::<IpAddr>().ok())
+                .map(|s| s.trim())
+                .rev()
+                .filter_map(|s| s.parse::<IpAddr>().ok())
+                .find(|ip| !ip.is_loopback())
         } else {
             None
         }

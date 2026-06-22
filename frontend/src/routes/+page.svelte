@@ -596,7 +596,7 @@
 
     .container.active-mode {
         grid-template-columns: 1fr;
-        max-width: 600px;
+        max-width: 720px;
         justify-content: center;
         gap: 0;
     }

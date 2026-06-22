@@ -40,6 +40,8 @@ export class WebRTCConnection {
     private wsConnectAttempts = 0;
     private wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private isClosed = false;
+    private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    private hasFallenBackToRelay = false;
 
     private lastSeenSequence: Map<string, number> = new Map();
     private outgoingSeq = 0;
@@ -117,15 +119,25 @@ export class WebRTCConnection {
         }
     }
 
-    private async fetchAndApplyTurnCredentials() {
+    private async fetchAndApplyTurnCredentials(attempt = 1): Promise<void> {
         try {
             const apiBase = this.apiBase;
-            this.log(`[ICE] Fetching dynamic TURN credentials from ${apiBase}/api/turn-credentials...`);
+            this.log(`[ICE] Fetching dynamic TURN credentials from ${apiBase}/api/turn-credentials (attempt ${attempt}/3)...`);
             const res = await fetch(`${apiBase}/api/turn-credentials?room_id=${encodeURIComponent(this.roomId)}`);
             if (!res.ok) {
+                if (res.status === 403 && attempt < 3) {
+                    this.log(`[ICE] TURN credentials request returned 403 (possible room registration race). Retrying in 500ms...`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    return this.fetchAndApplyTurnCredentials(attempt + 1);
+                }
                 throw new Error(`Failed to fetch TURN credentials: ${res.status} ${res.statusText}`);
             }
             const data = await res.json();
+            
+            if (this.isClosed || this.pc.signalingState === 'closed') {
+                this.log(`[ICE] Connection was closed during fetch. Aborting TURN configuration.`);
+                return;
+            }
             
             if (data && data.urls && data.username && data.credential) {
                 const currentConfig = this.pc.getConfiguration();
@@ -219,6 +231,12 @@ export class WebRTCConnection {
         this.pc.onconnectionstatechange = () => {
             this.log(`[WebRTC] Connection state: ${this.pc.connectionState}`);
             if (this.onStateChange) this.onStateChange(`PeerConnection: ${this.pc.connectionState}`);
+            
+            if (this.pc.connectionState === 'connecting') {
+                this.startFallbackTimer();
+            } else if (this.pc.connectionState === 'connected' || this.pc.connectionState === 'failed' || this.pc.connectionState === 'closed') {
+                this.stopFallbackTimer();
+            }
         };
 
         this.pc.oniceconnectionstatechange = () => {
@@ -507,6 +525,36 @@ export class WebRTCConnection {
         }, 4000);
     }
 
+    private startFallbackTimer() {
+        if (this.fallbackTimer || this.hasFallenBackToRelay) return;
+        this.log("[WebRTC] Starting connection fallback timer (6s)...");
+        this.fallbackTimer = setTimeout(() => {
+            if (this.pc.connectionState !== 'connected' && !this.hasFallenBackToRelay) {
+                this.log("[WebRTC] Connection is stuck in connecting. Forcing 'relay' ICE transport policy to bypass VPN/firewall...");
+                this.hasFallenBackToRelay = true;
+                
+                try {
+                    const currentConfig = this.pc.getConfiguration();
+                    this.pc.setConfiguration({
+                        ...currentConfig,
+                        iceTransportPolicy: 'relay'
+                    });
+                    this.pc.restartIce();
+                } catch (err) {
+                    console.error("[WebRTC] Failed to set configuration to relay-only:", err);
+                }
+            }
+            this.fallbackTimer = null;
+        }, 6000);
+    }
+
+    private stopFallbackTimer() {
+        if (this.fallbackTimer) {
+            clearTimeout(this.fallbackTimer);
+            this.fallbackTimer = null;
+        }
+    }
+
     private async getHmacKey(): Promise<CryptoKey> {
         if (this.hmacKey) return this.hmacKey;
         const keyMaterial = await crypto.subtle.importKey(
@@ -708,6 +756,7 @@ export class WebRTCConnection {
     public close() {
         this.isClosed = true;
         this.stopNegotiationRetry();
+        this.stopFallbackTimer();
         if (this.wsReconnectTimer) {
             clearTimeout(this.wsReconnectTimer);
             this.wsReconnectTimer = null;

@@ -142,6 +142,8 @@ pub async fn turn_credentials_handler(
         format!("{}?transport=tcp", server_url),
     ];
 
+    state.turn_requests.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
     (
         StatusCode::OK,
         Json(TurnCredentialsResponse {

@@ -81,7 +81,7 @@ export async function startP2PDownload(s: TransferState, forceZip = false) {
                 
                 const now = new Date();
                 const pad = (n: number) => String(n).padStart(2, '0');
-                const folderSuffix = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+                const folderSuffix = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}_${pad(now.getHours())}.${pad(now.getMinutes())}.${pad(now.getSeconds())}`;
                 const autoSubfolderName = `VoidDrop_${folderSuffix}`;
                 
                 const { join } = await import('@tauri-apps/api/path');
@@ -102,7 +102,7 @@ export async function startP2PDownload(s: TransferState, forceZip = false) {
                     
                     const now = new Date();
                     const pad = (n: number) => String(n).padStart(2, '0');
-                    const folderSuffix = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+                    const folderSuffix = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}_${pad(now.getHours())}.${pad(now.getMinutes())}.${pad(now.getSeconds())}`;
                     const autoSubfolderName = `VoidDrop_${folderSuffix}`;
                     
                     const subDirHandle = await selectedDirHandle.getDirectoryHandle(autoSubfolderName, { create: true });
@@ -112,6 +112,10 @@ export async function startP2PDownload(s: TransferState, forceZip = false) {
                     s.receiverSaveLocationName = `${parentName}/${autoSubfolderName}`;
                     s.log(`Created isolated folder "${autoSubfolderName}" to prevent file overwriting.`);
                 } catch (pickerErr: any) {
+                    if (pickerErr?.name === 'AbortError') {
+                        s.log("Save cancelled.");
+                        return;
+                    }
                     console.warn("Directory picker error, falling back to RAM ZIP:", pickerErr);
                     if (pickerErr?.name === 'SecurityError') {
                         s.log("The browser is blocking access to the root Downloads folder. Create a subfolder (e.g. Downloads/VoidDrop) and select it, or continue downloading as a ZIP archive.");
@@ -149,6 +153,10 @@ export async function startP2PDownload(s: TransferState, forceZip = false) {
                     s.receiverSaveLocationName = handle.name || 'Local File';
                     s.log(`Save location selected. Signaling sender to begin...`);
                 } catch (pickerErr: any) {
+                    if (pickerErr?.name === 'AbortError') {
+                        s.log("Save cancelled.");
+                        return;
+                    }
                     console.warn("Save file picker error, falling back to RAM:", pickerErr);
                     if (pickerErr?.name === 'SecurityError') {
                         s.log("The browser is blocking access to the selected file. Download will begin into RAM...");

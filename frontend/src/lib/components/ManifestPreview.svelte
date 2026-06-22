@@ -71,6 +71,12 @@
         if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(2)} MB`;
         return `${(bytes / 1073741824).toFixed(2)} GB`;
     }
+
+    let hasFileSystemAccess = $derived(
+        typeof window !== "undefined"
+            ? (isBundle ? ('showDirectoryPicker' in window) : ('showSaveFilePicker' in window))
+            : false
+    );
 </script>
 
 {#if s.flowState === "MANIFEST" && s.receiverManifest}
@@ -140,99 +146,28 @@
         {/if}
 
         <div class="buttons-row-responsive">
-            {#if isDesktop}
-                <!-- Tauri Desktop Mode -->
-                <button
-                    class="btn-p2p"
-                    style="flex: 1;"
-                    onclick={() => startP2PDownload(s, false)}
-                    disabled={!s.p2pSelectedFiles.some((v) => v)}
+            <button
+                class="btn-p2p"
+                style="flex: 1;"
+                onclick={() => startP2PDownload(s, isDesktop ? false : !hasFileSystemAccess)}
+                disabled={!s.p2pSelectedFiles.some((v) => v)}
+            >
+                <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
                 >
-                    <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    >
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    {isBundle ? 'Save to Folder' : 'Save to File'}
-                </button>
-                <button
-                    class="btn-secondary-zip"
-                    onclick={() => startP2PDownload(s, true)}
-                    disabled={!s.p2pSelectedFiles.some((v) => v)}
-                >
-                    <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    >
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    {isBundle ? 'Download ZIP' : 'Download File'}
-                </button>
-            {:else}
-                <!-- Web Mode: Fallback/ZIP is Primary -->
-                <button
-                    class="btn-p2p"
-                    style="flex: 1;"
-                    onclick={() => startP2PDownload(s, true)}
-                    disabled={!s.p2pSelectedFiles.some((v) => v)}
-                >
-                    <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    >
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    {isBundle ? 'Download ZIP' : 'Download File'}
-                </button>
-                {#if isBundle ? ('showDirectoryPicker' in window) : ('showSaveFilePicker' in window)}
-                    <button
-                        class="btn-secondary-zip"
-                        onclick={() => startP2PDownload(s, false)}
-                        disabled={!s.p2pSelectedFiles.some((v) => v)}
-                    >
-                        <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        {isBundle ? 'Save to Folder' : 'Save to File'}
-                    </button>
-                {/if}
-            {/if}
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                {isBundle ? 'Download All' : 'Download File'}
+            </button>
         </div>
     </div>
 {/if}

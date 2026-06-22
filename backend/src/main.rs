@@ -41,6 +41,8 @@ pub(crate) struct AppState {
     pub max_rooms: usize,
     pub ws_connections: std::sync::atomic::AtomicUsize,
     pub rate_limit_triggers: std::sync::atomic::AtomicUsize,
+    pub rooms_created: std::sync::atomic::AtomicUsize,
+    pub turn_requests: std::sync::atomic::AtomicUsize,
 }
 
 impl AppState {
@@ -67,6 +69,7 @@ impl AppState {
                     buffer: std::sync::Mutex::new(VecDeque::new()),
                 });
                 e.insert(room.clone());
+                self.rooms_created.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 Some(room)
             }
         }
@@ -102,7 +105,7 @@ async fn main() {
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(1000);
 
-    let app_state = AppState {
+    let app_state = Arc::new(AppState {
         rooms: Arc::new(DashMap::new()),
         rate_limits: Arc::new(DashMap::new()),
         trust_proxy,
@@ -111,7 +114,9 @@ async fn main() {
         max_rooms,
         ws_connections: std::sync::atomic::AtomicUsize::new(0),
         rate_limit_triggers: std::sync::atomic::AtomicUsize::new(0),
-    };
+        rooms_created: std::sync::atomic::AtomicUsize::new(0),
+        turn_requests: std::sync::atomic::AtomicUsize::new(0),
+    });
 
     // Rate limit cleanup task
     let limits_clone = app_state.rate_limits.clone();
@@ -141,7 +146,25 @@ async fn main() {
         }
     });
 
-    let app = app_router(Arc::new(app_state));
+    // Periodic stats logging task (every 10 minutes)
+    let stats_state = app_state.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(600)).await;
+            let active_rooms = stats_state.rooms.len();
+            let ws_connections = stats_state.ws_connections.load(std::sync::atomic::Ordering::Relaxed);
+            let rate_limit_triggers = stats_state.rate_limit_triggers.load(std::sync::atomic::Ordering::Relaxed);
+            let rooms_created = stats_state.rooms_created.load(std::sync::atomic::Ordering::Relaxed);
+            let turn_requests = stats_state.turn_requests.load(std::sync::atomic::Ordering::Relaxed);
+
+            info!(
+                "VoidDrop Stats Summary -> Active Rooms: {}, WS Connections: {}, Rooms Created: {}, TURN Requests: {}, Rate Limit Triggers: {}",
+                active_rooms, ws_connections, rooms_created, turn_requests, rate_limit_triggers
+            );
+        }
+    });
+
+    let app = app_router(app_state.clone());
 
     let port = std::env::var("PORT")
         .ok()
@@ -192,6 +215,18 @@ async fn main() {
     .with_graceful_shutdown(shutdown_signal())
     .await
     .unwrap();
+
+    // Print final statistics on shutdown
+    let active_rooms = app_state.rooms.len();
+    let ws_connections = app_state.ws_connections.load(std::sync::atomic::Ordering::Relaxed);
+    let rate_limit_triggers = app_state.rate_limit_triggers.load(std::sync::atomic::Ordering::Relaxed);
+    let rooms_created = app_state.rooms_created.load(std::sync::atomic::Ordering::Relaxed);
+    let turn_requests = app_state.turn_requests.load(std::sync::atomic::Ordering::Relaxed);
+
+    info!(
+        "VoidDrop Shutdown. Final Stats -> Active Rooms: {}, WS Connections: {}, Rooms Created: {}, TURN Requests: {}, Rate Limit Triggers: {}",
+        active_rooms, ws_connections, rooms_created, turn_requests, rate_limit_triggers
+    );
 }
 
 async fn shutdown_signal() {
@@ -226,6 +261,8 @@ async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl IntoRespons
     let active_rooms = state.rooms.len();
     let ws_connections = state.ws_connections.load(std::sync::atomic::Ordering::Relaxed);
     let rate_limit_triggers = state.rate_limit_triggers.load(std::sync::atomic::Ordering::Relaxed);
+    let rooms_created = state.rooms_created.load(std::sync::atomic::Ordering::Relaxed);
+    let turn_requests = state.turn_requests.load(std::sync::atomic::Ordering::Relaxed);
 
     let metrics_data = format!(
         "# HELP voiddrop_active_rooms The total number of active signaling rooms.\n\
@@ -236,8 +273,14 @@ async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl IntoRespons
          voiddrop_ws_connections_total {}\n\
          # HELP voiddrop_rate_limit_triggers_total The total number of times rate limits were triggered.\n\
          # TYPE voiddrop_rate_limit_triggers_total counter\n\
-         voiddrop_rate_limit_triggers_total {}\n",
-        active_rooms, ws_connections, rate_limit_triggers
+         voiddrop_rate_limit_triggers_total {}\n\
+         # HELP voiddrop_rooms_created_total The total number of rooms created since startup.\n\
+         # TYPE voiddrop_rooms_created_total counter\n\
+         voiddrop_rooms_created_total {}\n\
+         # HELP voiddrop_turn_requests_total The total number of TURN credentials requests.\n\
+         # TYPE voiddrop_turn_requests_total counter\n\
+         voiddrop_turn_requests_total {}\n",
+        active_rooms, ws_connections, rate_limit_triggers, rooms_created, turn_requests
     );
 
     (
