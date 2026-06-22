@@ -28,17 +28,34 @@
 
     function formatLog(line: string) {
         if (!line) return "";
-        // Escapes HTML tags to prevent XSS, then highlights key terms
+        
+        // Escapes HTML tags to prevent XSS
         let safeLine = line
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
             
-        return safeLine
-            .replace(/(WebRTC|ICE|WS|Signaling|Channel|P2P|Socket|Proxy|Manifest)/g, '<span class="token-tech">$1</span>')
-            .replace(/(connected|open|success|established|completed|done|active|verified|trusted)/gi, '<span class="token-success">$1</span>')
-            .replace(/(disconnected|failed|error|closed|broken|invalid|denied)/gi, '<span class="token-error">$1</span>')
-            .replace(/(negotiating|connecting|pending|restart|retrying|reconnecting)/gi, '<span class="token-warn">$1</span>');
+        // Tokenize using word boundaries, capturing the words
+        const tokens = safeLine.split(/(\b\w+\b)/g);
+        
+        // Match lists
+        const techTerms = /^(WebRTC|WebSocket|PeerConnection|DataChannel|ICE|TURN|STUN|Signaling|Proxy|Relay|Host|SRFLX|Server|WS|P2P|Manifest|Channel|Socket|Route)$/i;
+        const successTerms = /^(connected|open|success|successfully|established|completed|complete|done|active|verified|trusted)$/i;
+        const errorTerms = /^(disconnected|failed|error|closed|broken|invalid|denied)$/i;
+        const warnTerms = /^(negotiating|connecting|pending|gathering|restart|retrying|reconnecting)$/i;
+        
+        return tokens.map(token => {
+            if (techTerms.test(token)) {
+                return `<span class="token-tech">${token}</span>`;
+            } else if (successTerms.test(token)) {
+                return `<span class="token-success">${token}</span>`;
+            } else if (errorTerms.test(token)) {
+                return `<span class="token-error">${token}</span>`;
+            } else if (warnTerms.test(token)) {
+                return `<span class="token-warn">${token}</span>`;
+            }
+            return token;
+        }).join("");
     }
 </script>
 
